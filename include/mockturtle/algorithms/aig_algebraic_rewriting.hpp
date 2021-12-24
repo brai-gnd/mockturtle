@@ -16,7 +16,6 @@ namespace mockturtle
 
 namespace detail
 {
-
 template<class Ntk>
 class aig_algebraic_rewriting_impl
 {
