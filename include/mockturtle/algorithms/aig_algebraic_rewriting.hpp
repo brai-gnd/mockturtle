@@ -257,7 +257,7 @@ private:
     return false;
   }
 
- /* bool try_three_layer_distributivity( node n )
+  bool try_three_layer_distributivity( node n )  /*
   {
 
     node nChild;
@@ -369,107 +369,120 @@ private:
     }
 
     return false;
-  }*/
-  
-  
-  
-  
-  
-  
-    bool try_three_layer_distributivity( node n )
-  {
-    bool flag_three_layer_distributivity = false;
-   // std::vector<signal> children_on_three_layer = {}, children_other = {};
-    node n_child;
+    */
 
-    if ( ntk.is_on_critical_path( n ) )
     {
-      three_layer_help( n ); 
-      /* ntk.foreach_fanin( n, [&]( signal const& signal_in_n )
+
+    uint8_t free_level;
+    uint8_t level_gate_crit;
+
+    bool critical_flag = false;
+    bool free_flag = false;
+
+    signal C_path_0, C_path_1, C_path_2;
+    signal Free_path_0, Free_path_1, Free_path_2;
+
+    ntk.foreach_fanin( n, [&]( signal child )
+                       {
+                         if ( ntk.is_on_critical_path( ntk.get_node( child ) ) && ntk.is_complemented( child ) )
                          {
-                           n_child = ntk.get_node( signal_in_n );
-                           if ( ntk.is_on_critical_path( n_child ) && ntk.is_complemented( signal_in_n ) )
-                             children_on_three_layer.push_back( signal_in_n );
-                           else if ( !ntk.is_on_critical_path( n_child ) )
-                             children_other.push_back( signal_in_n );
-                           return;
-                         } );*/
+                           critical_flag = true; //Met critical path
+                           C_path_0 = child;
+                           level_gate_crit = ntk.level( ntk.get_node( C_path_0 ) ); //Needed for advantageous rrealization
+                         }
 
-      if ( children_on_three_layer.size()== 1 && children_other.size()== 1 )
-     // {
-          three_layer_help( ntk.get_node(children_on_three_layer.at( 0 ) ));       
-          /*
-        ntk.foreach_fanin( ntk.get_node( children_on_three_layer.at( 0 ) ), [&]( signal const& signal_in_n )
+                         else
+                         {
+                           if ( !ntk.is_on_critical_path( ntk.get_node( child ) ) )
                            {
-                             n_child = ntk.get_node( signal_in_n );
-                             if ( ntk.is_on_critical_path( n_child ) && ntk.is_complemented( signal_in_n ) )
-                               children_on_three_layer.push_back( signal_in_n );
-                             else if ( !ntk.is_on_critical_path( n_child ) )
-                               children_other.push_back( signal_in_n );
-                             return;
-                           } );*/
-     // }
-      if ( children_on_three_layer.size() == 2 && children_other.size() == 2 )
-      {
-          ntk.foreach_fanin( ntk.get_node(children_on_three_layer.at( 1 )), [&]( signal const& signal_in_n )
-                             {
-                               n_child = ntk.get_node( signal_in_n );
-                               if ( ntk.is_on_critical_path( n_child ) )
-                                 children_on_three_layer.push_back( signal_in_n );
-                               else 
-                                 children_other.push_back( signal_in_n );
-                               return;
-                             } );
-      }
-      
+                             free_flag = true; //Met non critical path
+                             Free_path_0 = child;
+                             free_level = ntk.level( ntk.get_node( Free_path_0 ) );
+                           }
+                         }
+                       } );
 
-      if ( children_on_three_layer.size() == 3 && children_other.size() == 3 )
-      {
-        uint32_t level_three_layer = ntk.level( ntk.get_node(children_on_three_layer.at( 0 )) ), level_opt = ntk.level( ntk.get_node(children_other.at( 0 ) ));
-        if ( level_three_layer - 2 > level_opt )
-        {
-          signal bottom_and;
-          bottom_and = ntk.create_and( children_other.at( 2 ), children_other.at( 0 ) );
-          signal right_and;
-          right_and = ntk.create_and( children_on_three_layer.at( 2 ), bottom_and );
-          signal to_sub;
-          signal left_and;
-          left_and = ntk.create_and( children_other.at( 0 ), ntk.create_not( children_other.at( 1 ) ) );
-        //  signal right_and_comp = ntk.create_not( right_and );
-        //  signal left_and_comp = ntk.create_not( left_and );
-          signal new_netw = ntk.create_nand( !right_and, !left_and );
+    if ( ( level_gate_crit <= 2 + free_level ) || !critical_flag || !free_flag ) //Basic condition to check the feasibility
+      return false;
 
-          ntk.substitute_node( n, new_netw );
-          flag_three_layer_distributivity = true;
-        }
-        
-      } 
+    if ( critical_flag && free_flag )
+    {
+      // Flags reset
+      critical_flag = false;
+      free_flag = false;
 
+      // Repeat the previous algorithm
+      ntk.foreach_fanin( ntk.get_node( C_path_0 ), [&]( signal child_first )
+                         {
+                           if ( ntk.is_on_critical_path( ntk.get_node( child_first ) ) && ntk.is_complemented( child_first ) )
+                           {
+
+                             critical_flag = true;
+                             C_path_1 = child_first;
+                           }
+                           else if ( ntk.is_complemented( child_first ) )
+                           {
+
+                             free_flag = true;
+                             Free_path_1 = child_first;
+                           }
+                         } );
     }
 
-    children_on_three_layer.clear();
-    children_other.clear();
+    else
+      return false;
 
+    // Same approach on different layers
 
-    return flag_three_layer_distributivity;
+    if ( critical_flag && free_flag )
+    {
+      critical_flag = false;
+      free_flag = false;
+
+      ntk.foreach_fanin( ntk.get_node( C_path_1 ), [&]( signal child_second )
+                         {
+                           if ( ntk.is_on_critical_path( ntk.get_node( child_second ) ) )
+                           {
+
+                             critical_flag = true;
+                             C_path_2 = child_second;
+                           }
+                           else
+                           {
+
+                             free_flag = true;
+                             Free_path_2 = child_second;
+                           }
+                         } );
+    }
+
+    else
+      return false;
+
+    // Check to realize the optimized circuit
+
+    if ( critical_flag && free_flag )
+    {
+
+      signal and_new_0;
+      signal and_new_1;
+      signal and_new_2;
+      signal nand_output;
+
+      and_new_0 = ntk.create_and( Free_path_2, Free_path_0 );
+
+      and_new_1 = ntk.create_and( C_path_2, and_new_0 );
+
+      and_new_2 = ntk.create_and( Free_path_0, ntk.create_not( Free_path_1 ) );
+
+      nand_output = ntk.create_nand( ntk.create_not( and_new_1 ), ntk.create_not( and_new_2 ) );
+
+      ntk.substitute_node( n, nand_output );
+
+      return true;
+    }
+    return false;
   }
-
-  void three_layer_help(node const& n) {
-
-       ntk.foreach_fanin( n, [&]( signal const& signal_in_n )
-                       {
-                         node n_child = ntk.get_node( signal_in_n );
-                         if ( ntk.is_on_critical_path( n_child ) && ntk.is_complemented( signal_in_n ) )
-                           children_on_three_layer.push_back( signal_in_n );
-                         else if ( !ntk.is_on_critical_path( n_child ) )
-                           children_other.push_back( signal_in_n );
-                         return;
-                       } );
-      return;
-  }
-  
-  
-  
   
 
 private:
