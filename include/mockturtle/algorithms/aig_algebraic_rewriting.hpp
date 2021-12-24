@@ -64,7 +64,7 @@ private:
 
   bool try_associativity( node n )
   {
-
+    bool flagAssociativity = false; 
     bool feasibility = false; // true if associativity is applicable
 
     uint32_t Level = 0;          // current level of node n
@@ -147,16 +147,16 @@ private:
       {
         signal new_and_1th = ntk.create_and( sideSignal, betaSide );
         ntk.substitute_node( n, ntk.create_and( new_and_1th, criticalBeta ) );
-        return true;
+        flagAssociativity = true;
       }
     }
 
-    return false;
+    return flagAssociativity;
   }
 
   bool try_distributivity( node n )
   {
-
+    bool flagDistributivity = false; 
     bool feasibility = false;   // true if associativity is applicable for node n
     bool betaFeasible = false;  // true if associativity is applicable for node child
     bool feasibleBeta1 = false; // true if associativity is applicable for node grandchildre
