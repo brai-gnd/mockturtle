@@ -370,119 +370,118 @@ private:
 
     return false;
     */
+  {
+    node nChild;
+  bool critical = false;
+  bool non_critical = false;
 
-    {
+  std::vector<signal> betaLayer3, otherBeta;
 
-    uint8_t free_level;
-    uint8_t level_gate_crit;
+  if ( ntk.is_on_critical_path( n ) )
 
-    bool critical_flag = false;
-    bool free_flag = false;
-
-    signal C_path_0, C_path_1, C_path_2;
-    signal Free_path_0, Free_path_1, Free_path_2;
-
-    ntk.foreach_fanin( n, [&]( signal child )
+  {
+    ntk.foreach_fanin( n, [&]( signal const& inSignal_n )
                        {
-                         if ( ntk.is_on_critical_path( ntk.get_node( child ) ) && ntk.is_complemented( child ) )
+                         node nChild = ntk.get_node( inSignal_n );
+                         if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) )
+
                          {
-                           critical_flag = true; //Met critical path
-                           C_path_0 = child;
-                           level_gate_crit = ntk.level( ntk.get_node( C_path_0 ) ); //Needed for advantageous rrealization
+                           critical = true;
+                           betaLayer3.push_back( inSignal_n );
                          }
 
-                         else
+                         else if ( !ntk.is_on_critical_path( nChild ) )
+
                          {
-                           if ( !ntk.is_on_critical_path( ntk.get_node( child ) ) )
-                           {
-                             free_flag = true; //Met non critical path
-                             Free_path_0 = child;
-                             free_level = ntk.level( ntk.get_node( Free_path_0 ) );
-                           }
+
+                           otherBeta.push_back( inSignal_n );
+                           non_critical = true;
                          }
                        } );
 
-    if ( ( level_gate_crit <= 2 + free_level ) || !critical_flag || !free_flag ) //Basic condition to check the feasibility
-      return false;
-
-    if ( critical_flag && free_flag )
+    if ( critical && non_critical )
     {
-      // Flags reset
-      critical_flag = false;
-      free_flag = false;
 
-      // Repeat the previous algorithm
-      ntk.foreach_fanin( ntk.get_node( C_path_0 ), [&]( signal child_first )
+      critical = false;
+      non_critical = false;
+      ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 0 ) ), [&]( signal const& inSignal_n )
                          {
-                           if ( ntk.is_on_critical_path( ntk.get_node( child_first ) ) && ntk.is_complemented( child_first ) )
+                           node nChild = ntk.get_node( inSignal_n );
+                           if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) )
+
                            {
 
-                             critical_flag = true;
-                             C_path_1 = child_first;
+                             betaLayer3.push_back( inSignal_n );
+                             critical = true;
                            }
-                           else if ( ntk.is_complemented( child_first ) )
+
+                           else if ( !ntk.is_on_critical_path( nChild ) )
+
                            {
 
-                             free_flag = true;
-                             Free_path_1 = child_first;
+                             non_critical = true;
+                             otherBeta.push_back( inSignal_n );
                            }
                          } );
     }
 
     else
+
       return false;
 
-    // Same approach on different layers
-
-    if ( critical_flag && free_flag )
+    if ( critical && non_critical )
     {
-      critical_flag = false;
-      free_flag = false;
 
-      ntk.foreach_fanin( ntk.get_node( C_path_1 ), [&]( signal child_second )
+      critical = false;
+      non_critical = false;
+      ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 1 ) ), [&]( signal const& inSignal_n )
                          {
-                           if ( ntk.is_on_critical_path( ntk.get_node( child_second ) ) )
+                           nChild = ntk.get_node( inSignal_n );
+                           if ( ntk.is_on_critical_path( nChild ) )
+
                            {
 
-                             critical_flag = true;
-                             C_path_2 = child_second;
+                             critical = true;
+                             betaLayer3.push_back( inSignal_n );
                            }
                            else
                            {
 
-                             free_flag = true;
-                             Free_path_2 = child_second;
+                             otherBeta.push_back( inSignal_n );
+                             non_critical = true;
                            }
                          } );
     }
 
     else
+
       return false;
 
-    // Check to realize the optimized circuit
+    if ( critical && non_critical )
 
-    if ( critical_flag && free_flag )
     {
+      uint32_t level_three_layer = ntk.level( ntk.get_node( betaLayer3.at( 0 ) ) ), level_opt = ntk.level( ntk.get_node( otherBeta.at( 0 ) ) );
+      if ( level_three_layer - 2 > level_opt )
 
-      signal and_new_0;
-      signal and_new_1;
-      signal and_new_2;
-      signal nand_output;
+      {
+        signal AND_Bottom;
+        AND_Bottom = ntk.create_and( otherBeta.at( 2 ), otherBeta.at( 0 ) );
+        signal AND_Right;
+        AND_Right = ntk.create_and( betaLayer3.at( 2 ), AND_Bottom );
+        signal AND_Left;
+        AND_Left = ntk.create_and( otherBeta.at( 0 ), ntk.create_not( otherBeta.at( 1 ) ) );
+        signal new_netw = ntk.create_nand( ntk.create_not( AND_Right ), ntk.create_not( AND_Left ) );
 
-      and_new_0 = ntk.create_and( Free_path_2, Free_path_0 );
+        ntk.substitute_node( n, new_netw );
 
-      and_new_1 = ntk.create_and( C_path_2, and_new_0 );
-
-      and_new_2 = ntk.create_and( Free_path_0, ntk.create_not( Free_path_1 ) );
-
-      nand_output = ntk.create_nand( ntk.create_not( and_new_1 ), ntk.create_not( and_new_2 ) );
-
-      ntk.substitute_node( n, nand_output );
-
-      return true;
+        return true;
+      }
     }
-    return false;
   }
+
+  return false;
+
+}
   
 
 private:
