@@ -16,6 +16,7 @@ namespace mockturtle
 
 namespace detail
 {
+
 template<class Ntk>
 class aig_algebraic_rewriting_impl
 {
@@ -199,7 +200,7 @@ private:
 
                                    ntk.foreach_fanin( nChild, [&]( signal const& inSignalChild_n ) // cycling over node fanin
                                                       {
-                                                        node nChild2 = ntk.get_node( inSignalChild_n ); // take gate which output is inSignalChild_n => granchild 
+                                                        node nChild2 = ntk.get_node( inSignalChild_n );                // take gate which output is inSignalChild_n => granchild
                                                         if ( !ntk.is_on_critical_path( nChild2 ) && betaCounter == 1 ) // check if granchild is not on the CP and there is one child on CP
 
                                                         {
@@ -211,7 +212,7 @@ private:
 
                                                           criticalBeta = inSignalChild_n; // signal granchild is in the CP
 
-                                                        else if ( !ntk.is_on_critical_path( nChild2 ) ) 
+                                                        else if ( !ntk.is_on_critical_path( nChild2 ) )
                                                         {
 
                                                           feasibleBeta1 = true; // node granchild2 is not on CP
@@ -224,7 +225,7 @@ private:
                                                         return;
                                                       } );
 
-                                   betaCounter++; // used to determine if the number of child in the critical path are two. 
+                                   betaCounter++; // used to determine if the number of child in the critical path are two.
                                                   // if is lower => distributivity in not convenient
                                  }
                                }
@@ -239,15 +240,15 @@ private:
     // signal on critical path of child1 and child2 must be connected
     // create the network to substitute node n as reported in figure 3 (project option 1)
     {
-      signal orNew = ntk.create_or( betaSide, betaSide1 ); 
+      signal orNew = ntk.create_or( betaSide, betaSide1 );
       signal logicNew;
       if ( !ntk.is_or( n ) ) // check if output of node n is complemented or not
 
-        logicNew = ntk.create_nand( orNew, criticalBeta ); 
+        logicNew = ntk.create_nand( orNew, criticalBeta );
 
       else
 
-        logicNew = ntk.create_and( orNew, criticalBeta ); 
+        logicNew = ntk.create_and( orNew, criticalBeta );
 
       ntk.substitute_node( n, logicNew );
       return true;
@@ -256,126 +257,124 @@ private:
     return false;
   }
 
-
- bool try_three_layer_distributivity( node n )
-{
-
-  node nChild;
-  bool critical = false; // TRUE IF vector betalayer3 is updated
-  bool non_critical = false; // TRUE IF vector otherBeta beta is updated
-
-  std::vector<signal> betaLayer3, otherBeta; // vectors of signals
-
-  if ( ntk.is_on_critical_path( n ) ) // gate n is in the criticsl path
-
+  bool try_three_layer_distributivity( node n )
   {
-    ntk.foreach_fanin( n, [&]( signal const& inSignal_n )
-                       {
-                         node nChild = ntk.get_node( inSignal_n );
-                         if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) ) // boolean 0 and child is on the critical path
 
-                         {
-                           critical = true;
-                           betaLayer3.push_back( inSignal_n );
-                         }
+    node nChild;
+    bool critical = false;     // TRUE IF vector betalayer3 is updated
+    bool non_critical = false; // TRUE IF vector otherBeta beta is updated
 
-                         else if ( !ntk.is_on_critical_path( nChild ) ) // child n is not in the critical path
+    std::vector<signal> betaLayer3, otherBeta; // vectors of signals
 
-                         {
+    if ( ntk.is_on_critical_path( n ) ) // gate n is in the criticsl path
 
-                           otherBeta.push_back( inSignal_n );
-                           non_critical = true;
-                         }
-                       } );
-
-    if ( critical && non_critical )
     {
-
-      critical = false;
-      non_critical = false;
-      ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 0 ) ), [&]( signal const& inSignal_n )
+      ntk.foreach_fanin( n, [&]( signal const& inSignal_n )
                          {
                            node nChild = ntk.get_node( inSignal_n );
-                           if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) )
+                           if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) ) // boolean 0 and child is on the critical path
 
                            {
-
-                             betaLayer3.push_back( inSignal_n );
-                             critical = true;
-                           }
-
-                           else if ( !ntk.is_on_critical_path( nChild ) )
-
-                           {
-
-                             non_critical = true;
-                             otherBeta.push_back( inSignal_n );
-                           }
-                         } );
-    }
-
-    else
-
-      return false;
-
-    if ( critical && non_critical )
-    {
-
-      critical = false;
-      non_critical = false;
-      ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 1 ) ), [&]( signal const& inSignal_n )
-                         {
-                           nChild = ntk.get_node( inSignal_n );
-                           if ( ntk.is_on_critical_path( nChild ) )
-
-                           {
-
                              critical = true;
                              betaLayer3.push_back( inSignal_n );
                            }
-                           else
+
+                           else if ( !ntk.is_on_critical_path( nChild ) ) // child n is not in the critical path
+
                            {
 
                              otherBeta.push_back( inSignal_n );
                              non_critical = true;
                            }
                          } );
-    }
 
-    else
+      if ( critical && non_critical )
+      {
 
-      return false;
+        critical = false;
+        non_critical = false;
+        ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 0 ) ), [&]( signal const& inSignal_n )
+                           {
+                             node nChild = ntk.get_node( inSignal_n );
+                             if ( ntk.is_on_critical_path( nChild ) && ntk.is_complemented( inSignal_n ) )
 
-    if ( critical && non_critical )
+                             {
 
-    {
-      uint32_t level_three_layer = ntk.level( ntk.get_node( betaLayer3.at( 0 ) ) ), level_opt = ntk.level( ntk.get_node( otherBeta.at( 0 ) ) );
-      if ( level_three_layer - 2 > level_opt )
+                               betaLayer3.push_back( inSignal_n );
+                               critical = true;
+                             }
+
+                             else if ( !ntk.is_on_critical_path( nChild ) )
+
+                             {
+
+                               non_critical = true;
+                               otherBeta.push_back( inSignal_n );
+                             }
+                           } );
+      }
+
+      else
+
+        return false;
+
+      if ( critical && non_critical )
+      {
+
+        critical = false;
+        non_critical = false;
+        ntk.foreach_fanin( ntk.get_node( betaLayer3.at( 1 ) ), [&]( signal const& inSignal_n )
+                           {
+                             nChild = ntk.get_node( inSignal_n );
+                             if ( ntk.is_on_critical_path( nChild ) )
+
+                             {
+
+                               critical = true;
+                               betaLayer3.push_back( inSignal_n );
+                             }
+                             else
+                             {
+
+                               otherBeta.push_back( inSignal_n );
+                               non_critical = true;
+                             }
+                           } );
+      }
+
+      else
+
+        return false;
+
+      if ( critical && non_critical )
 
       {
-        signal AND_Bottom;
-        AND_Bottom = ntk.create_and( otherBeta.at( 2 ), otherBeta.at( 0 ) );
-        signal AND_Right;
-        AND_Right = ntk.create_and( betaLayer3.at( 2 ), AND_Bottom );
-        signal AND_Left;
-        AND_Left = ntk.create_and( otherBeta.at( 0 ), ntk.create_not( otherBeta.at( 1 ) ) );
-        signal new_netw = ntk.create_nand( ntk.create_not( AND_Right ), ntk.create_not( AND_Left ) );
+        uint32_t level_three_layer = ntk.level( ntk.get_node( betaLayer3.at( 0 ) ) ), level_opt = ntk.level( ntk.get_node( otherBeta.at( 0 ) ) );
+        if ( level_three_layer - 2 > level_opt )
 
-        ntk.substitute_node( n, new_netw );
+        {
+          signal AND_Bottom;
+          AND_Bottom = ntk.create_and( otherBeta.at( 2 ), otherBeta.at( 0 ) );
+          signal AND_Right;
+          AND_Right = ntk.create_and( betaLayer3.at( 2 ), AND_Bottom );
+          signal AND_Left;
+          AND_Left = ntk.create_and( otherBeta.at( 0 ), ntk.create_not( otherBeta.at( 1 ) ) );
+          signal new_netw = ntk.create_nand( ntk.create_not( AND_Right ), ntk.create_not( AND_Left ) );
 
-        return true;
+          ntk.substitute_node( n, new_netw );
+
+          return true;
+        }
       }
     }
+
+    return false;
   }
 
-  return false;
-}
-
 private:
-Ntk& ntk;
-}
-;
-}
+  Ntk& ntk;
+};
+} // namespace detail
 template<class Ntk>
 void aig_algebraic_rewriting( Ntk& ntk )
 {
@@ -385,4 +384,4 @@ void aig_algebraic_rewriting( Ntk& ntk )
   detail::aig_algebraic_rewriting_impl p( dntk );
   p.run();
 }
-}
+} // namespace mockturtle
